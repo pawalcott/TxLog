@@ -52,6 +52,9 @@ h2 { font: 700 1.05rem var(--display); margin: 0; letter-spacing: .03em; text-tr
 .entry .t { font: 500 .95rem var(--mono); font-variant-numeric: tabular-nums; min-width: 0; }
 .entry .d { font: 600 .9rem var(--body); color: var(--muted); text-align: right; }
 .entry .note { color: var(--muted); font-size: .9rem; grid-column: 2 / 4; }
+.entry.ov { border-color: var(--on); border-width: 2px; }
+.entry .ovt { color: var(--on); font-weight: 700; font-size: .9rem; grid-column: 1 / 4; }
+.pill.warn { background: var(--on); color: var(--on-ink); }
 .edit { padding: 0 12px 12px; display: grid; gap: 10px; }
 .hint { color: var(--muted); font-size: .9rem; margin: 0; }
 .empty { color: var(--muted); text-align: center; padding: 18px 8px; border: 1px dashed var(--line); border-radius: 12px; }
@@ -73,6 +76,12 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
       <label>Step <input id="step" inputmode="decimal" autocomplete="off"></label>
       <label>Direction
         <select id="dir"><option value="-1">Down (−)</option><option value="1">Up (+)</option></select>
+      </label>
+    </div>
+    <div class="row">
+      <label style="flex-basis:55%">Current logger (gDAS s/n) <input id="lsn" inputmode="numeric" placeholder="unit with the current clamp" autocomplete="off"></label>
+      <label>Channel
+        <select id="lch"><option value="1">1</option><option value="2">2</option></select>
       </label>
     </div>
   </section>
@@ -118,10 +127,10 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
 
   // Example log until the first real entry: marked as an example, cleared on the first Start.
   const t0 = Date.UTC(2023, 8, 30, 17, 22, 0);
-  const sample = { line: '1000', step: 100, dir: -1, station: 2950, active: null, example: true, entries: [
-    { id: 1, line: '1000', station: 3250, start: t0, end: t0 + 540e3, current: 1.4, note: 'example' },
-    { id: 2, line: '1000', station: 3150, start: t0 + 900e3, end: t0 + 1440e3, current: 1.9, note: 'example' },
-    { id: 3, line: '1000', station: 3050, start: t0 + 1680e3, end: t0 + 2220e3, current: 2.9, note: 'example' } ] };
+  const sample = { line: '1000', step: 100, dir: -1, station: 2950, lsn: '212', lch: 1, active: null, example: true, entries: [
+    { id: 1, line: '1000', station: 3250, start: t0, end: t0 + 540e3, current: 1.4, note: 'example', lsn: '212', lch: 1 },
+    { id: 2, line: '1000', station: 3150, start: t0 + 900e3, end: t0 + 1440e3, current: 1.9, note: 'example', lsn: '212', lch: 1 },
+    { id: 3, line: '1000', station: 3050, start: t0 + 1680e3, end: t0 + 2220e3, current: 2.9, note: 'example', lsn: '212', lch: 1 } ] };
 
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
@@ -134,8 +143,8 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
   function csv() {
     const q = s => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     const rows = S.entries.filter(e => e.end).sort((a, b) => a.start - b.start)
-      .map(e => [e.line, fmt(e.station), utc(e.start), utc(e.end), fmt(e.current), q(e.note || '')].join(','));
-    return 'line,station,start_utc,end_utc,current_a,note\n' + rows.join('\n') + '\n';
+      .map(e => [e.line, fmt(e.station), utc(e.start), utc(e.end), fmt(e.current), q(e.note || ''), e.lsn || '', e.lsn ? (e.lch || 1) : ''].join(','));
+    return 'line,station,start_utc,end_utc,current_a,note,logger_sn,logger_ch\n' + rows.join('\n') + '\n';
   }
   function fileName() {
     const first = S.entries.length ? S.entries[0].start : Date.now();
@@ -144,6 +153,7 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
 
   function render() {
     $('line').value = S.line; $('step').value = fmt(S.step); $('dir').value = String(S.dir);
+    $('lsn').value = S.lsn || ''; $('lch').value = String(S.lch || 1);
     if (document.activeElement !== $('station')) $('station').value = fmt(S.station);
     const act = S.entries.find(e => e.id === S.active);
     $('go').textContent = act ? 'Stop Tx' : 'Start Tx';
@@ -153,18 +163,22 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
     $('hint').textContent = act ? 'On at ' + fmt(act.station) + ' since ' + hms(act.start) + ' UTC. Tap Stop when the transmitter goes off.'
       : 'Start when the transmitter is switched on at this pole, Stop when it goes off. The station then moves one step.';
     const done = S.entries.filter(e => e.end).length;
-    $('count').textContent = S.example ? 'example' : done + (done === 1 ? ' reading' : ' readings');
+    const ov = overlaps();
+    const nov = Object.keys(ov).length;
+    $('count').textContent = S.example ? 'example' : done + (done === 1 ? ' reading' : ' readings') + (nov ? ' · ' + nov + ' overlap' : '');
+    $('count').classList.toggle('warn', nov > 0);
     const log = $('log'); log.innerHTML = '';
     if (!S.entries.length) { log.innerHTML = '<div class="empty">No transmissions yet. Set the pole station and tap Start Tx.</div>'; }
     [...S.entries].sort((a, b) => b.start - a.start).forEach(e => {
-      const el = document.createElement('div'); el.className = 'entry';
+      const el = document.createElement('div'); el.className = 'entry' + (ov[e.id] ? ' ov' : '');
       const b = document.createElement('button');
       const sec = e.end ? (e.end - e.start) / 1000 : (Date.now() - e.start) / 1000;
-      b.innerHTML = '<span class="st"></span><span class="t"></span><span class="d"></span><span class="note"></span>';
+      b.innerHTML = '<span class="st"></span><span class="t"></span><span class="d"></span><span class="note"></span>' + (ov[e.id] ? '<span class="ovt"></span>' : '');
+      if (ov[e.id]) b.querySelector('.ovt').textContent = 'Overlaps ' + ov[e.id].join(', ') + ': check the times';
       b.querySelector('.st').textContent = fmt(e.station);
       b.querySelector('.t').textContent = hms(e.start) + ' – ' + (e.end ? hms(e.end) : 'on');
       b.querySelector('.d').textContent = dur(sec) + (e.current !== null && e.current !== undefined ? ' · ' + fmt(e.current) + ' A' : '');
-      b.querySelector('.note').textContent = 'L' + e.line + (e.note ? ' · ' + e.note : '');
+      b.querySelector('.note').textContent = 'L' + e.line + (e.lsn ? ' · logger ' + e.lsn + ' ch' + (e.lch || 1) : '') + (e.note ? ' · ' + e.note : '');
       b.setAttribute('aria-expanded', openId === e.id);
       b.onclick = () => { openId = openId === e.id ? null : e.id; armDelete = null; render(); };
       el.appendChild(b);
@@ -174,14 +188,28 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
     const ta = $('csvout'); if (!ta.hidden) ta.value = csv();
   }
 
+  function overlaps() {                        // id -> stations of the other readings whose times overlap it
+    const out = {}, list = S.entries.slice().sort((a, b) => a.start - b.start);
+    list.forEach((a, i) => list.slice(i + 1).forEach(b => {
+      const aEnd = a.end || Date.now(), bEnd = b.end || Date.now();
+      if (b.start < aEnd && a.start < bEnd) {
+        (out[a.id] = out[a.id] || []).push(fmt(b.station) + ' ' + hms(b.start).slice(0, 5));
+        (out[b.id] = out[b.id] || []).push(fmt(a.station) + ' ' + hms(a.start).slice(0, 5));
+      }
+    }));
+    return out;
+  }
+
   function editor(e) {
     const f = document.createElement('div'); f.className = 'edit';
     f.innerHTML = '<div class="row"><label>Station <input data-k="station" inputmode="decimal"></label><label>Line <input data-k="line" inputmode="numeric"></label><label>Current (A) <input data-k="current" inputmode="decimal"></label></div>' +
+      '<div class="row"><label>Current logger s/n <input data-k="lsn" inputmode="numeric"></label><label>Channel <input data-k="lch" inputmode="numeric"></label></div>' +
       '<div class="row"><label>Start UTC <input data-k="start" placeholder="HH:MM:SS"></label><label>End UTC <input data-k="end" placeholder="HH:MM:SS"></label></div>' +
       '<label>Note <input data-k="note"></label><div class="btns"><button class="btn primary" data-a="save">Save</button><button class="btn danger" data-a="del"></button><span class="hint" data-a="msg"></span></div>';
     const get = k => f.querySelector('[data-k="' + k + '"]');
     get('station').value = fmt(e.station); get('line').value = e.line; get('current').value = fmt(e.current);
     get('start').value = hms(e.start); get('end').value = e.end ? hms(e.end) : ''; get('note').value = e.note || '';
+    get('lsn').value = e.lsn || ''; get('lch').value = e.lsn ? String(e.lch || 1) : '';
     const del = f.querySelector('[data-a="del"]'); del.textContent = armDelete === e.id ? 'Tap again to delete' : 'Delete';
     const setTime = (base, txt) => {           // HH:MM:SS on the reading's own UTC day
       const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(txt.trim()); if (!m) return null;
@@ -193,7 +221,8 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
       if (st === null || s === null || (get('end').value.trim() && (en === null || en <= s))) {
         f.querySelector('[data-a="msg"]').textContent = 'Check the station and the times (HH:MM:SS, end after start).'; return;
       }
-      Object.assign(e, { station: st, line: get('line').value.trim() || S.line, current: num(get('current').value), start: s, note: get('note').value.trim() });
+      Object.assign(e, { station: st, line: get('line').value.trim() || S.line, current: num(get('current').value), start: s, note: get('note').value.trim(),
+                         lsn: get('lsn').value.trim(), lch: num(get('lch').value) === 2 ? 2 : 1 });
       if (e.end || en) e.end = en;
       openId = null; save(); render(); toast('Saved');
     };
@@ -218,7 +247,8 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
       if (S.example) { S.entries = []; S.example = false; }
       const st = num($('station').value);
       if (st === null) { toast('Enter the pole station first.'); return; }
-      const e = { id: now, line: S.line, station: st, start: now, end: null, current: num($('current').value), note: $('note').value.trim() };
+      const e = { id: now, line: S.line, station: st, start: now, end: null, current: num($('current').value), note: $('note').value.trim(),
+                  lsn: S.lsn || '', lch: S.lch || 1 };
       S.entries.push(e); S.active = e.id; S.station = st;
       try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => wake = w, () => {}); } catch (err) {}
     }
@@ -250,6 +280,8 @@ textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); backgroun
   $('line').onchange = () => { S.line = $('line').value.trim(); save(); render(); };
   $('step').onchange = () => { const v = num($('step').value); if (v !== null) S.step = Math.abs(v); save(); render(); };
   $('dir').onchange = () => { S.dir = +$('dir').value; save(); render(); };
+  $('lsn').onchange = () => { S.lsn = $('lsn').value.trim(); save(); render(); };
+  $('lch').onchange = () => { S.lch = +$('lch').value; save(); render(); };
   $('share').onclick = share;
   $('copy').onclick = copy;
   $('clear').onclick = () => {
