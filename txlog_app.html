@@ -1,0 +1,270 @@
+<title>Tx Field Log</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one column, thumb-reach controls; the station + big Start/Stop are the whole job, the log sits below. */
+:root {
+  --bg: #eef1f0; --panel: #ffffff; --ink: #14201d; --muted: #5b6b67; --line: #cfd8d5;
+  --on: #c2410c; --on-ink: #ffffff; --go: #0f766e; --go-ink: #ffffff; --soft: #e2e9e7;
+  --display: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --body: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1514; --panel: #18211f; --ink: #e6efec; --muted: #8fa29d; --line: #2c3936;
+  --on: #f97316; --on-ink: #1a0d04; --go: #2dd4bf; --go-ink: #04201c; --soft: #22302d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1514; --panel: #18211f; --ink: #e6efec; --muted: #8fa29d; --line: #2c3936;
+  --on: #f97316; --on-ink: #1a0d04; --go: #2dd4bf; --go-ink: #04201c; --soft: #22302d; color-scheme: dark }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 500 17px/1.35 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 14px; padding-block: 14px 40px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+h1 { font: 700 1.5rem/1 var(--display); margin: 0; letter-spacing: .01em; }
+.clock { font: 500 .95rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 12px; }
+.row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+label { display: grid; gap: 4px; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); flex: 1 1 90px; min-width: 0; }
+input, select { font: 600 1.1rem var(--body); color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; min-height: 48px; width: 100%; box-sizing: border-box; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid var(--go); outline-offset: 2px; }
+.station { display: grid; grid-template-columns: 64px 1fr 64px; gap: 10px; align-items: stretch; }
+.station input { font: 700 2.6rem/1 var(--mono); text-align: center; font-variant-numeric: tabular-nums; padding: 8px 4px; }
+.step { font: 700 2rem/1 var(--display); border-radius: 12px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); }
+.big { font: 700 1.6rem/1 var(--display); letter-spacing: .04em; text-transform: uppercase; border: 0; border-radius: 16px;
+  min-height: 84px; width: 100%; background: var(--go); color: var(--go-ink); cursor: pointer; }
+.big.stop { background: var(--on); color: var(--on-ink); }
+.live { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font: 600 1rem var(--body); }
+.live b { font: 700 1.8rem var(--mono); font-variant-numeric: tabular-nums; color: var(--on); }
+.pill { display: inline-block; font: 700 .72rem var(--body); letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--soft); color: var(--muted); }
+.pill.on { background: var(--on); color: var(--on-ink); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: 600 1rem var(--body); border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; padding: 10px 14px; min-height: 44px; cursor: pointer; }
+.btn.danger { color: var(--on); border-color: var(--on); }
+.btn.primary { background: var(--go); border-color: var(--go); color: var(--go-ink); }
+h2 { font: 700 1.05rem var(--display); margin: 0; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+.log { display: grid; gap: 8px; }
+.entry { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.entry > button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; padding: 10px 12px; cursor: pointer; }
+.entry .st { font: 700 1.5rem/1.1 var(--mono); grid-row: span 2; align-self: center; font-variant-numeric: tabular-nums; }
+.entry .t { font: 500 .95rem var(--mono); font-variant-numeric: tabular-nums; min-width: 0; }
+.entry .d { font: 600 .9rem var(--body); color: var(--muted); text-align: right; }
+.entry .note { color: var(--muted); font-size: .9rem; grid-column: 2 / 4; }
+.edit { padding: 0 12px 12px; display: grid; gap: 10px; }
+.hint { color: var(--muted); font-size: .9rem; margin: 0; }
+.empty { color: var(--muted); text-align: center; padding: 18px 8px; border: 1px dashed var(--line); border-radius: 12px; }
+textarea { width: 100%; min-height: 90px; font: 500 .8rem var(--mono); background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-sizing: border-box; }
+.toast { min-height: 1.2em; color: var(--go); font-weight: 600; }
+@media (prefers-reduced-motion: no-preference) { .pill.on { animation: blink 1.2s steps(2, start) infinite; } }
+@keyframes blink { to { opacity: .45; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Tx Field Log</h1>
+    <div class="clock"><div id="utc">--:--:-- UTC</div><div id="loc"></div></div>
+  </header>
+
+  <section class="card" aria-label="Survey">
+    <div class="row">
+      <label>Line <input id="line" inputmode="numeric" autocomplete="off"></label>
+      <label>Step <input id="step" inputmode="decimal" autocomplete="off"></label>
+      <label>Direction
+        <select id="dir"><option value="-1">Down (−)</option><option value="1">Up (+)</option></select>
+      </label>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Transmission">
+    <div class="live"><span>Pole station <span id="state" class="pill">ready</span></span><b id="elapsed"></b></div>
+    <div class="station">
+      <button class="step" id="minus" aria-label="Previous station">−</button>
+      <input id="station" inputmode="decimal" autocomplete="off" aria-label="Pole station">
+      <button class="step" id="plus" aria-label="Next station">+</button>
+    </div>
+    <div class="row">
+      <label>Current (A) <input id="current" inputmode="decimal" placeholder="optional" autocomplete="off"></label>
+      <label style="flex-basis:60%">Note <input id="note" placeholder="optional" autocomplete="off"></label>
+    </div>
+    <button class="big" id="go">Start Tx</button>
+    <p class="hint" id="hint">Start when the transmitter is switched on at this pole, Stop when it goes off. The station then moves one step.</p>
+  </section>
+
+  <section class="card" aria-label="Log">
+    <div class="live"><h2>Today's log</h2><span id="count" class="pill">0</span></div>
+    <div class="log" id="log"></div>
+    <div class="btns">
+      <button class="btn primary" id="share">Save / share CSV</button>
+      <button class="btn" id="copy">Copy CSV</button>
+      <button class="btn danger" id="clear">Start a new day</button>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <textarea id="csvout" hidden readonly aria-label="CSV"></textarea>
+  </section>
+</div>
+
+<script>
+(function () {
+  const KEY = 'txlog.v1';
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2, '0');
+  const utc = ms => { const d = new Date(ms); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()); };
+  const hms = ms => utc(ms).slice(11);
+  const dur = s => (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + pad(Math.floor(s / 60) % 60) + ':' + pad(Math.floor(s % 60));
+  const num = v => { const f = parseFloat(String(v).replace(',', '.')); return isFinite(f) ? f : null; };
+  const fmt = v => (v === null || v === undefined) ? '' : String(+(+v).toFixed(3));
+
+  // Example log until the first real entry: marked as an example, cleared on the first Start.
+  const t0 = Date.UTC(2023, 8, 30, 17, 22, 0);
+  const sample = { line: '1000', step: 100, dir: -1, station: 2950, active: null, example: true, entries: [
+    { id: 1, line: '1000', station: 3250, start: t0, end: t0 + 540e3, current: 1.4, note: 'example' },
+    { id: 2, line: '1000', station: 3150, start: t0 + 900e3, end: t0 + 1440e3, current: 1.9, note: 'example' },
+    { id: 3, line: '1000', station: 3050, start: t0 + 1680e3, end: t0 + 2220e3, current: 2.9, note: 'example' } ] };
+
+  let S;
+  try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
+  if (!S || !Array.isArray(S.entries)) S = JSON.parse(JSON.stringify(sample));
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+  let openId = null, armDelete = null, armClear = false, wake = null;
+
+  function toast(t) { $('toast').textContent = t; clearTimeout(toast.h); toast.h = setTimeout(() => $('toast').textContent = '', 4000); }
+
+  function csv() {
+    const q = s => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    const rows = S.entries.filter(e => e.end).sort((a, b) => a.start - b.start)
+      .map(e => [e.line, fmt(e.station), utc(e.start), utc(e.end), fmt(e.current), q(e.note || '')].join(','));
+    return 'line,station,start_utc,end_utc,current_a,note\n' + rows.join('\n') + '\n';
+  }
+  function fileName() {
+    const first = S.entries.length ? S.entries[0].start : Date.now();
+    return 'TxLog_L' + (S.line || 'x') + '_' + utc(first).slice(0, 10) + '.csv';
+  }
+
+  function render() {
+    $('line').value = S.line; $('step').value = fmt(S.step); $('dir').value = String(S.dir);
+    if (document.activeElement !== $('station')) $('station').value = fmt(S.station);
+    const act = S.entries.find(e => e.id === S.active);
+    $('go').textContent = act ? 'Stop Tx' : 'Start Tx';
+    $('go').classList.toggle('stop', !!act);
+    $('state').textContent = act ? 'transmitting' : 'ready';
+    $('state').classList.toggle('on', !!act);
+    $('hint').textContent = act ? 'On at ' + fmt(act.station) + ' since ' + hms(act.start) + ' UTC. Tap Stop when the transmitter goes off.'
+      : 'Start when the transmitter is switched on at this pole, Stop when it goes off. The station then moves one step.';
+    const done = S.entries.filter(e => e.end).length;
+    $('count').textContent = S.example ? 'example' : done + (done === 1 ? ' reading' : ' readings');
+    const log = $('log'); log.innerHTML = '';
+    if (!S.entries.length) { log.innerHTML = '<div class="empty">No transmissions yet. Set the pole station and tap Start Tx.</div>'; }
+    [...S.entries].sort((a, b) => b.start - a.start).forEach(e => {
+      const el = document.createElement('div'); el.className = 'entry';
+      const b = document.createElement('button');
+      const sec = e.end ? (e.end - e.start) / 1000 : (Date.now() - e.start) / 1000;
+      b.innerHTML = '<span class="st"></span><span class="t"></span><span class="d"></span><span class="note"></span>';
+      b.querySelector('.st').textContent = fmt(e.station);
+      b.querySelector('.t').textContent = hms(e.start) + ' – ' + (e.end ? hms(e.end) : 'on');
+      b.querySelector('.d').textContent = dur(sec) + (e.current !== null && e.current !== undefined ? ' · ' + fmt(e.current) + ' A' : '');
+      b.querySelector('.note').textContent = 'L' + e.line + (e.note ? ' · ' + e.note : '');
+      b.setAttribute('aria-expanded', openId === e.id);
+      b.onclick = () => { openId = openId === e.id ? null : e.id; armDelete = null; render(); };
+      el.appendChild(b);
+      if (openId === e.id) el.appendChild(editor(e));
+      log.appendChild(el);
+    });
+    const ta = $('csvout'); if (!ta.hidden) ta.value = csv();
+  }
+
+  function editor(e) {
+    const f = document.createElement('div'); f.className = 'edit';
+    f.innerHTML = '<div class="row"><label>Station <input data-k="station" inputmode="decimal"></label><label>Line <input data-k="line" inputmode="numeric"></label><label>Current (A) <input data-k="current" inputmode="decimal"></label></div>' +
+      '<div class="row"><label>Start UTC <input data-k="start" placeholder="HH:MM:SS"></label><label>End UTC <input data-k="end" placeholder="HH:MM:SS"></label></div>' +
+      '<label>Note <input data-k="note"></label><div class="btns"><button class="btn primary" data-a="save">Save</button><button class="btn danger" data-a="del"></button><span class="hint" data-a="msg"></span></div>';
+    const get = k => f.querySelector('[data-k="' + k + '"]');
+    get('station').value = fmt(e.station); get('line').value = e.line; get('current').value = fmt(e.current);
+    get('start').value = hms(e.start); get('end').value = e.end ? hms(e.end) : ''; get('note').value = e.note || '';
+    const del = f.querySelector('[data-a="del"]'); del.textContent = armDelete === e.id ? 'Tap again to delete' : 'Delete';
+    const setTime = (base, txt) => {           // HH:MM:SS on the reading's own UTC day
+      const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(txt.trim()); if (!m) return null;
+      const d = new Date(base); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +m[1], +m[2], +(m[3] || 0));
+    };
+    f.querySelector('[data-a="save"]').onclick = () => {
+      const st = num(get('station').value), s = setTime(e.start, get('start').value);
+      const en = get('end').value.trim() ? setTime(e.start, get('end').value) : null;
+      if (st === null || s === null || (get('end').value.trim() && (en === null || en <= s))) {
+        f.querySelector('[data-a="msg"]').textContent = 'Check the station and the times (HH:MM:SS, end after start).'; return;
+      }
+      Object.assign(e, { station: st, line: get('line').value.trim() || S.line, current: num(get('current').value), start: s, note: get('note').value.trim() });
+      if (e.end || en) e.end = en;
+      openId = null; save(); render(); toast('Saved');
+    };
+    del.onclick = () => {
+      if (armDelete !== e.id) { armDelete = e.id; render(); return; }
+      S.entries = S.entries.filter(x => x !== e); if (S.active === e.id) S.active = null;
+      armDelete = null; openId = null; save(); render(); toast('Deleted');
+    };
+    return f;
+  }
+
+  function startStop() {
+    const now = Date.now();
+    const act = S.entries.find(e => e.id === S.active);
+    if (act) {
+      act.end = now; act.current = num($('current').value) ?? act.current; act.note = $('note').value.trim() || act.note;
+      S.active = null; S.station = +(act.station + S.dir * (S.step || 0)).toFixed(3);
+      $('current').value = ''; $('note').value = '';
+      try { wake && wake.release(); } catch (e) {} wake = null;
+      toast('Logged ' + fmt(act.station) + ': ' + dur((act.end - act.start) / 1000));
+    } else {
+      if (S.example) { S.entries = []; S.example = false; }
+      const st = num($('station').value);
+      if (st === null) { toast('Enter the pole station first.'); return; }
+      const e = { id: now, line: S.line, station: st, start: now, end: null, current: num($('current').value), note: $('note').value.trim() };
+      S.entries.push(e); S.active = e.id; S.station = st;
+      try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => wake = w, () => {}); } catch (err) {}
+    }
+    save(); render();
+  }
+
+  async function share() {
+    if (S.example) { toast('This is the example log. Start a reading first.'); return; }
+    const text = csv(), name = fileName();
+    try {
+      const file = new File([text], name, { type: 'text/csv' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); toast('Shared ' + name); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    try {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' })); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove(); toast('Saved ' + name + ' (if nothing downloaded, use Copy CSV)');
+    } catch (e) { showCsv(); }
+  }
+  function showCsv() { const ta = $('csvout'); ta.hidden = false; ta.value = csv(); ta.focus(); ta.select(); }
+  function copy() {
+    const text = csv();
+    try { navigator.clipboard.writeText(text).then(() => toast('CSV copied'), showCsv); } catch (e) { showCsv(); }
+  }
+
+  $('go').onclick = startStop;
+  $('minus').onclick = () => { S.station = +((num($('station').value) ?? S.station) - (S.step || 0)).toFixed(3); save(); render(); };
+  $('plus').onclick = () => { S.station = +((num($('station').value) ?? S.station) + (S.step || 0)).toFixed(3); save(); render(); };
+  $('station').onchange = () => { const v = num($('station').value); if (v !== null) { S.station = v; save(); } render(); };
+  $('line').onchange = () => { S.line = $('line').value.trim(); save(); render(); };
+  $('step').onchange = () => { const v = num($('step').value); if (v !== null) S.step = Math.abs(v); save(); render(); };
+  $('dir').onchange = () => { S.dir = +$('dir').value; save(); render(); };
+  $('share').onclick = share;
+  $('copy').onclick = copy;
+  $('clear').onclick = () => {
+    if (!armClear) { armClear = true; $('clear').textContent = 'Tap again: clears the log'; setTimeout(() => { armClear = false; $('clear').textContent = 'Start a new day'; }, 4000); return; }
+    armClear = false; $('clear').textContent = 'Start a new day';
+    S.entries = []; S.active = null; S.example = false; openId = null; save(); render(); toast('Log cleared');
+  };
+
+  function tick() {
+    const n = Date.now();
+    $('utc').textContent = hms(n) + ' UTC';
+    $('loc').textContent = new Date(n).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' local';
+    const act = S.entries.find(e => e.id === S.active);
+    $('elapsed').textContent = act ? dur((n - act.start) / 1000) : '';
+  }
+  render(); tick(); setInterval(tick, 1000);
+})();
+</script>
